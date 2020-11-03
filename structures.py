@@ -59,4 +59,5 @@ class Params:
         self.save_path: str =  None
         self.env_name: str = None
         self.network_type: str = None
+        self.parallel: bool = None
         self.__dict__ = d

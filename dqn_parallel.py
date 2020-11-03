@@ -14,7 +14,8 @@ from structures import Params
 from agent import Agent
 from model_factory import get_model
 from utils import average_gradients
-
+import tracemalloc
+from utils import display_top
 
 class ParallelDQN(Agent):
 
@@ -79,7 +80,9 @@ class ParallelDQN(Agent):
             param.grad.data.clamp_(-1, 1)
 
         # average gradients over all processes
-        average_gradients(self.q_net)
+        if self.params.parallel:
+            average_gradients(self.q_net)
+
 
         # plot_grad_flow(self.q_net.named_parameters())
         self.optimizer.step()
@@ -136,6 +139,7 @@ class ParallelDQN(Agent):
 
     def reset_env(self):
         """
+        Returns the first state spit out by the env
         Return pytorch tensor
         """
         s = self.env.reset()
@@ -144,6 +148,7 @@ class ParallelDQN(Agent):
 
     def step_env(self, a):
         """
+        This function steps through the env and returns the next state
         a is assumed to be a discrete value / float
         """
         new_s, r, done, _ = self.env.step(a)
@@ -172,14 +177,13 @@ class ParallelDQN(Agent):
                 if done:
                     # TODO: only for cartpole, this will be a signal that q target should be 0 for next state
                     # r[0] = 0, comment out for cartpole
-                    r[0] = r[0]
+                    r = self.change_reward_at_rollout_end(r)
 
                 traj.add(s, new_s, r, a)
 
                 if done:
                     break
                 
-                traj.add(s, new_s, r, a)
                 s = new_s
             
             # add to buffer
@@ -187,6 +191,10 @@ class ParallelDQN(Agent):
 
             self.decay_epsilon()
     
+    def change_reward_at_rollout_end(self, r):
+        # for cartpole return 0 ! r[0] = 0
+        return r
+
     def decay_epsilon(self):
 
         self.steps_done += 1
@@ -203,29 +211,36 @@ class ParallelDQN(Agent):
 
 
     def eval_agent(self, render=False):
-        total_rew = 0
-        for _ in range(self.num_rollouts):
-            s = self.reset_env()
-            for _ in range(self.rollout_len):
-                if render:
-                    self.env.render()
+        with torch.no_grad():
+            self.q_net.eval()
+            total_rew = 0
+            for _ in range(self.num_rollouts):
+                s = self.reset_env()
+                for _ in range(self.rollout_len):
+                    if render:
+                        self.env.render()
 
-                a = self.sample_actions(s, stochastic=False)
+                    a = self.sample_actions(s, stochastic=False)
 
-                new_s, r, done, _ = self.step_env(a)
+                    new_s, r, done, _ = self.step_env(a)
 
-                total_rew += r.item()
+                    total_rew += r.item()
 
-                if done:
-                    break
+                    if done:
+                        break
 
-                s = new_s
+                    # clear memory
+                    del s
 
-        mean_rew = total_rew/self.num_rollouts
-        print("Mean reward is {}".format(mean_rew))
+                    s = new_s
+                del s
+            del s
+            mean_rew = total_rew/self.num_rollouts
+            print("Mean reward is {}".format(mean_rew))
 
-        # save best model
-        self.save_best_model(metric=mean_rew)
+            # save best model
+            self.save_best_model(metric=mean_rew)
+        self.q_net.train() # set back to train
 
     def save_best_model(self, metric):
         if self.best_metric_till_yet < metric:
@@ -239,19 +254,23 @@ class ParallelDQN(Agent):
 
     def algorithm(self):
         for i in range(self.total_eps):
-                
+            self.env = gym.make('CarRacing-v0', verbose=0).unwrapped
+            print(f"Sampling {i}..")
             self.sample()
-
+            print(f"Updating {i}..")
             for _ in range(self.update_steps):
                 batch = self.buffer.get(self.batch_size)
                 self.update(batch)
 
-            
             if i % self.target_update_step == 0:
                 self.copy_q_target_net()
-
+            print(f"Evaluating {i}..")
             self.eval_agent()
-    
+
+            self.env.close()
+            # snapshot = tracemalloc.take_snapshot()
+            # display_top(snapshot)
+                
     def load_saved(self, model_path):
         obj = torch.load(join(model_path, 'model.pt'))
         self.q_net.load_state_dict(obj['q_net_state_dict'])

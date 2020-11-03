@@ -11,8 +11,8 @@ class Buffer:
         self.size = size
         self.actions = torch.empty((round(size), env_params.action_label_dim))
         self.rewards = torch.empty((round(size), env_params.rew_dim))
-        self.states = torch.empty((round(size), env_params.state_dim))
-        self.next_states = torch.empty((round(size), env_params.state_dim))
+        self.states = torch.empty((round(size), *env_params.state_dim))
+        self.next_states = torch.empty((round(size), *env_params.state_dim))
         self.ptr = 0
         self.full = False
 
@@ -21,6 +21,16 @@ class Buffer:
 
         if self.ptr + sz >= self.size:
             self.ptr = 0
+
+        a_ = self.actions[self.ptr:self.ptr+sz]
+        r_ = self.rewards[self.ptr:self.ptr+sz]
+        s_ =self.states[self.ptr:self.ptr+sz]
+        next_s = self.next_states[self.ptr:self.ptr+sz] 
+
+        del a_
+        del r_
+        del s_
+        del next_s
 
         self.actions[self.ptr:self.ptr+sz] = trajectory.actions
         self.rewards[self.ptr:self.ptr+sz] = trajectory.rewards
