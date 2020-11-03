@@ -66,5 +66,5 @@ def test_dqn():
     dqn.load_saved(params.save_path)
     dqn.eval_agent(render=True)
 
-# train_dqn()
-test_dqn()
+train_dqn()
+# test_dqn()

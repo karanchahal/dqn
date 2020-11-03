@@ -13,8 +13,10 @@ from pathlib import Path
 from structures import Params
 from agent import Agent
 from model_factory import get_model
+from utils import average_gradients
 
-class DQN(Agent):
+
+class ParallelDQN(Agent):
 
     def __init__(self, env, params):
         super().__init__()
@@ -68,6 +70,19 @@ class DQN(Agent):
             target[rews == 0] = 0
         
         return target
+    
+    def step(self, loss):
+        self.optimizer.zero_grad()
+        loss.backward()
+
+        for param in self.q_net.parameters():
+            param.grad.data.clamp_(-1, 1)
+
+        # average gradients over all processes
+        average_gradients(self.q_net)
+
+        # plot_grad_flow(self.q_net.named_parameters())
+        self.optimizer.step()
 
     def get_pred(self, states, actions):
         """

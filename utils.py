@@ -1,5 +1,17 @@
 import torch
 import matplotlib.pyplot as plt
+import os
+import torch
+import torch.distributed as dist
+from torch.multiprocessing import Process
+
+""" Gradient averaging. """
+def average_gradients(model):
+    size = float(dist.get_world_size())
+    for param in model.parameters():
+        dist.all_reduce(param.grad.data, op=dist.reduce_op.SUM)
+        param.grad.data /= size
+
 
 def plot_grad_flow(named_parameters):
     ave_grads = []
