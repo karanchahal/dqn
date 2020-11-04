@@ -11,6 +11,7 @@ from memory_profiler import profile
 import gc
 import tracemalloc
 import gym
+import matplotlib.pyplot as plt
 
 LEFT =1
 RIGHT = 2
@@ -49,11 +50,24 @@ class CarDQN(ParallelDQN):
 
 
         # load saved models
-        self.load_saved_models('./model2/dqn/model.pt')
+        self.load_saved_models('./model/dqn/model.pt')
+
+        # plt curves
+        self.plot_curves()
 
         # reset epsilon
         self.epsilon = 0.8
 
+    def plot_curves(self):
+        fig, axs = plt.subplots(1,2)
+        axs[0].plot(np.arange(len(self.mean_rewards)), self.mean_rewards)
+        axs[0].set_xlabel('Number of episodes')
+        axs[0].set_ylabel('Mean Rewards')
+        axs[1].plot(np.arange(len(self.losses)), self.losses)
+        axs[1].set_xlabel('Number of episodes')
+        axs[1].set_ylabel('Losses')
+        plt.show()
+        # the mean rew plot
 
     def load_saved_models(self, save_path):
         obj = torch.load(save_path)
@@ -152,9 +166,9 @@ class CarDQN(ParallelDQN):
         with torch.no_grad():
             self.q_net.eval()
             total_rew = 0
-            for _ in range(self.params.test_num_rollouts):
+            for _ in range(50): # self.params.test_num_rollouts
                 s = self.reset_env()
-                for _ in range(200):
+                for _ in range(400):
                     # if render:
                     if not self.params.parallel or dist.get_rank() == 0:
                         self.env.render()
@@ -174,7 +188,7 @@ class CarDQN(ParallelDQN):
                 self.mean_rewards.append(mean_rew)
                 print("Mean reward is {}".format(mean_rew))
             # save best model
-            self.save_best_model(metric=mean_rew)
+            # self.save_best_model(metric=mean_rew)
             self.q_net.train() # set back to train
     
     def save_best_model(self, metric):

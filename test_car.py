@@ -41,7 +41,8 @@ def run_car_racing(parallel=True):
     }
     params = Params(params)
     dqn = CarDQN(env, params)
-    dqn.algorithm()
+    # dqn.algorithm()
+    dqn.eval_agent()
 
 
 def run(rank, size):

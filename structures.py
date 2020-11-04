@@ -62,4 +62,6 @@ class Params:
         self.env_name: str = None
         self.network_type: str = None
         self.parallel: bool = None
+        self.log_interval: int = None 
+        self.render: bool = None
         self.__dict__ = d
