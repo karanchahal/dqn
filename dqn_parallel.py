@@ -44,10 +44,12 @@ class ParallelDQN(Agent):
         self.q_target_net = get_model(params).to(self.device)
 
         # optims
-        self.optimizer = optim.RMSprop(self.q_net.parameters())
+        self.optimizer = optim.Adam(self.q_net.parameters(), lr=0.001)
         
         # copying q_net to q_target
         self.copy_q_target_net()
+
+        self.losses = []
 
     def copy_q_target_net(self):
         self.q_target_net.load_state_dict(self.q_net.state_dict())
@@ -121,6 +123,8 @@ class ParallelDQN(Agent):
         loss = self.compute_loss(pred, target)
 
         self.step(loss)
+
+        self.losses.append(loss.item())
 
         # print(loss.item())
 

@@ -26,9 +26,11 @@ def run_car_racing(parallel=True):
         'epsilon': 0,
         "update_steps" : 10,
         "total_eps": 500,
-        "num_rollouts": 5,
+        "num_rollouts": 1,
         "rollout_len": 1000,
-        "buf_size": 10000,
+        "test_num_rollouts": 2,
+        "test_rollout_len": 100,
+        "buf_size": 1000,
         "batch_sz": 128,
         "target_update_step": 10,
         "device": "cpu",
@@ -50,13 +52,12 @@ def run(rank, size):
 def init_process(rank, size, fn, backend='gloo'):
     """ Initialize the distributed environment. """
     os.environ['MASTER_ADDR'] = '127.0.0.1'
-    os.environ['MASTER_PORT'] = '29501'
+    os.environ['MASTER_PORT'] = '29500'
     dist.init_process_group(backend, rank=rank, world_size=size)
     fn(rank, size)
 
 
-def parallel_run():
-    size = 1
+def parallel_run(size=1):
     processes = []
     for rank in range(size):
         p = Process(target=init_process, args=(rank, size, run))
@@ -67,5 +68,5 @@ def parallel_run():
         p.join()
 
 if __name__ == "__main__":
-    parallel_run()
-    # run_car_racing(parallel=False)
+    # parallel_run(size=4)
+    run_car_racing(parallel=False)

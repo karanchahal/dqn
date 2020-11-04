@@ -51,6 +51,8 @@ class Params:
         self.update_steps: int = None
         self.total_eps: int = None
         self.num_rollouts: int = None
+        self.test_num_rollouts:int = None
+        self.test_rollout_len: int = None
         self.rollout_len: int = None
         self.buf_size: int = None
         self.batch_sz: int = None

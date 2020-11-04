@@ -34,18 +34,36 @@ def action_to_id(a):
 
 class CarDQN(ParallelDQN):
 
-
     def __init__(self, env, params):
         super().__init__(env, params)
         self.history_queue = []
         self.id2action = {
-            0: [0.0, 0.0, 0.2], # STRAIGHT
-            1: [1.0, 0.0, 0.0], # LEFT
+            0: [0.0, 0.0, 0.0], # STRAIGHT
+            1: [-1.0, 0.0, 0.0], # LEFT
             2: [1.0, 0.0, 0.0], # RIGHT
             3: [0.0, 1.0, 0.0], # ACC,
             4: [0.0, 0.0, 0.2] # BRAKE
         }
-        # tracemalloc.start()
+        self.best_metric_till_yet = -200
+        self.mean_rewards = []
+
+
+        # load saved models
+        self.load_saved_models('./model2/dqn/model.pt')
+
+        # reset epsilon
+        self.epsilon = 0.8
+
+
+    def load_saved_models(self, save_path):
+        obj = torch.load(save_path)
+        self.q_net.load_state_dict(obj['q_net_state_dict'])
+        self.optimizer.load_state_dict(obj['optim_state_dict'])
+        self.mean_rewards = obj['rewards']
+        self.losses = obj['losses']
+
+        self.copy_q_target_net()
+
 
     def reset_env(self):
         s = self.env.reset()
@@ -100,7 +118,7 @@ class CarDQN(ParallelDQN):
 
             model_gone_wild = 0
             for _ in range(self.rollout_len):
-
+                self.env.render()
                 a = self.sample_actions(s)
                 new_s, r, done, _ = self.step_env(a)
                 # print(new_s.shape, r.shape, a)
@@ -134,34 +152,27 @@ class CarDQN(ParallelDQN):
         with torch.no_grad():
             self.q_net.eval()
             total_rew = 0
-            num_steps = 0
-            for _ in range(self.num_rollouts):
+            for _ in range(self.params.test_num_rollouts):
                 s = self.reset_env()
-                model_gone_wild = 0
-                for _ in range(self.rollout_len):
+                for _ in range(200):
                     # if render:
-                    self.env.render()
+                    if not self.params.parallel or dist.get_rank() == 0:
+                        self.env.render()
 
                     a = self.sample_actions(s, stochastic=False)
                     new_s, r, done, _ = self.step_env(a)
 
-                    # keeps a count of num steps the model has gone into the wild
-                    if r.item() < 0:
-                        model_gone_wild += 1
-                    else:
-                        model_gone_wild = 0
-
-
                     total_rew += r.item()
-                    num_steps += 1
 
-                    if done or model_gone_wild > 100: # either done or in the green for more than 50 time steps, then 
+                    if done: # either done or in the green for more than 50 time steps, then 
                         break
 
                     s = new_s
             
-            mean_rew = total_rew/num_steps
-            print("Mean reward is {}".format(mean_rew))
+            mean_rew = total_rew/self.params.test_num_rollouts
+            if not self.params.parallel or dist.get_rank() == 0:
+                self.mean_rewards.append(mean_rew)
+                print("Mean reward is {}".format(mean_rew))
             # save best model
             self.save_best_model(metric=mean_rew)
             self.q_net.train() # set back to train
@@ -174,7 +185,9 @@ class CarDQN(ParallelDQN):
                 model_path = torch.save({
                     'q_net_state_dict': self.q_net.state_dict(),
                     'optim_state_dict': self.optimizer.state_dict(),
-                    'params': self.params
+                    'params': self.params,
+                    'rewards': self.mean_rewards,
+                    'losses': self.losses
                 }, join(self.params.save_path, 'model.pt'))
     
     def algorithm(self):
@@ -193,9 +206,25 @@ class CarDQN(ParallelDQN):
 
             if i % self.target_update_step == 0:
                 self.copy_q_target_net()
+            
             print(f"Evaluating {i}..")
+
             self.eval_agent()
 
             self.env.close()
+
+    def decay_epsilon(self):
+
+        # self.steps_done += 1
+
+        # max_epsilon = 0.8
+        # min_epsilon = 0.2
+
+        # num_total_steps = self.total_eps*self.num_rollouts
+
+        # new_eps = max(min_epsilon, max_epsilon*self.steps_done / num_total_steps)
+        # self.epsilon = new_eps
+        self.epsilon = 0.8
+        # print(f"Epsilon {self.epsilon}")
 
 
