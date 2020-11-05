@@ -17,6 +17,19 @@ class MLP(nn.Module):
         return x
 
 
+class MLPParam(nn.Module):
+
+    def __init__(self, in_features, out_features, hidden_dim=50):
+        super().__init__()
+        self.fc1 = nn.Linear(in_features=in_features, out_features=hidden_dim)
+        self.fc2 = nn.Linear(in_features=hidden_dim, out_features=hidden_dim)
+        self.fc3 = nn.Linear(in_features=hidden_dim, out_features=out_features)
+    
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
 
 
 class CNNNet(nn.Module):

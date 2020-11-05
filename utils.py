@@ -8,7 +8,7 @@ import numpy as np
 import tracemalloc
 import linecache
 import os
-
+from scipy import signal
 
 def display_top(snapshot, key_type='lineno', limit=10):
     """
@@ -80,3 +80,26 @@ def printshape(fn):
 def get_random_indxs(n, start, end):
     return torch.randint(start, end, (n,))
 
+
+def discount_cumsum(x, discount):
+    """
+    magic from rllab for computing discounted cumulative sums of vectors.
+    input: 
+        vector x, 
+        [x0, 
+         x1, 
+         x2]
+    output:
+        [x0 + discount * x1 + discount^2 * x2,  
+         x1 + discount * x2,
+         x2]
+    """
+    x = x.numpy()
+    return torch.tensor(signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1].copy())
+
+
+def get_mean_std_across_processes(x):
+    size = float(dist.get_world_size())
+    summed_all_x = dist.all_reduce(x, op=dist.ReduceOp.SUM)
+    x = summed_all_x / size
+    return x.mean(), x.std()

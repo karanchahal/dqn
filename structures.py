@@ -1,6 +1,6 @@
 import torch
 import attr
-
+from utils import discount_cumsum, get_mean_std_across_processes
 
 @attr.s(auto_attribs=True)
 class EnvParams(object):
@@ -38,6 +38,83 @@ class Trajectory(object):
         self.next_states = torch.cat([self.next_states, next_s],dim=0)
         self.rewards = torch.cat([self.rewards, r],dim=0)
 
+@attr.s(auto_attribs=True)
+class OnPolicyBatch:
+    states : torch.Tensor = None
+    next_states : torch.Tensor = None
+    actions : torch.Tensor = None
+    returns_to_go : torch.Tensor = None
+    advantages : torch.Tensor = None
+    log_action_probs : torch.Tensor = None
+
+
+
+@attr.s(auto_attribs=True)
+class OnPolicyTrajectory(object):
+    actions : torch.Tensor = None
+    rewards : torch.Tensor = None
+    states : torch.Tensor = None 
+    next_states: torch.Tensor = None
+    log_action_probs: torch.Tensor = None
+    values: torch.Tensor = None
+    gamma: float = None
+
+    # add method
+    def add(self, s, next_s, r, a, log_prob_a, values):
+
+
+        s = s.unsqueeze(0)
+        next_s = next_s.unsqueeze(0)
+        r = r.unsqueeze(0)
+        a = a.unsqueeze(0)
+        log_prob_a = log_prob_a.unsqueeze(0)
+        # don't do it for values as they are output from the value function
+
+
+        if self.actions is None:
+            self.actions = a
+            self.states = s
+            self.next_states = next_s
+            self.rewards = r
+            self.log_action_probs = log_prob_a
+            self.values = values
+            return
+
+        self.actions = torch.cat((self.actions, a),dim=0)
+        self.states = torch.cat([self.states, s],dim=0)
+        self.next_states = torch.cat([self.next_states, next_s],dim=0)
+        self.rewards = torch.cat([self.rewards, r],dim=0)
+        self.log_action_probs = torch.cat([self.log_action_probs, log_prob_a], dim=0)
+        self.values = torch.cat([self.values, values], dim=0)
+
+
+    def get_batch(self, last_val, parallel, gamma=0.99, lam=0.95):
+        # last val is 0 if simulator has returned done, else if contains value of last state if we've reached max episode cut off
+        self.rewards = torch.cat([self.rewards, last_val], dim=0)
+        self.values = torch.cat([self.values, last_val], dim=0)
+
+        # curr rewards + gamma*next_values - curr_values: Bellman update ?
+        deltas = self.rewards[:-1] + gamma * self.values[1:] - self.values[:-1]
+        advantages = discount_cumsum(deltas, gamma*lam)
+    
+        # finish episode
+        returns_to_go = discount_cumsum(self.rewards, gamma)[:-1]
+
+        # the next two lines implement the advantage normalization trick
+        if parallel:
+            adv_mean, adv_std = get_mean_std_across_processes(advantages)
+        else:
+            adv_mean, adv_std = advantages.mean(), advantages.std()
+
+        advantages = (advantages - adv_mean) / adv_std
+        batch = OnPolicyBatch(states=self.states, next_states=self.next_states, actions=self.actions, returns_to_go=returns_to_go,  advantages=advantages, log_action_probs=self.log_action_probs)
+
+        return batch
+
+
+
+
+
 
 class Params:
 
@@ -64,4 +141,15 @@ class Params:
         self.parallel: bool = None
         self.log_interval: int = None 
         self.render: bool = None
+        self.clip_ratio: float = None
+        self.value_func_itrs: int = None
+        self.policy_itrs: int = None
+        self.load_saved: bool = None
         self.__dict__ = d
+
+    def __repr__(self):
+        print("Loading config..")
+        for k, v in self.__dict__.items():
+            if k is not None and v is not None:
+                print(f"{k} : {v}")
+        return ""

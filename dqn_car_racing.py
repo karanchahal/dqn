@@ -50,13 +50,10 @@ class CarDQN(ParallelDQN):
 
 
         # # load saved models
-        # self.load_saved_models('./model/dqn/model.pt')
+        if self.params.load_model:
+            print(self.params.save_path)
+            self.load_saved_models(join(self.params.save_path, 'model.pt'))
 
-        # # plt curves
-        # self.plot_curves()
-
-        # # reset epsilon
-        # self.epsilon = 0.8
 
     def plot_curves(self):
         fig, axs = plt.subplots(1,2)
@@ -70,13 +67,19 @@ class CarDQN(ParallelDQN):
         # the mean rew plot
 
     def load_saved_models(self, save_path):
+        print(f"Loading saved model....at {save_path}")
         obj = torch.load(save_path)
         self.q_net.load_state_dict(obj['q_net_state_dict'])
         self.optimizer.load_state_dict(obj['optim_state_dict'])
         self.mean_rewards = obj['rewards']
         self.losses = obj['losses']
-
+        # self.params = obj['params']
         self.copy_q_target_net()
+
+
+        # Print configx
+        print(self.params)
+
 
 
     def reset_env(self):
@@ -164,13 +167,13 @@ class CarDQN(ParallelDQN):
 
             self.decay_epsilon()
 
-    def eval_agent(self, render=False):
+    def eval_agent(self, render=False, save=True):
         with torch.no_grad():
             self.q_net.eval()
             total_rew = 0
-            for _ in range(2): # self.params.test_num_rollouts
+            for _ in range(self.params.test_num_rollouts): # self.params.test_num_rollouts
                 s = self.reset_env()
-                for _ in range(200):
+                for _ in range(self.params.test_rollout_len):
                     # if render:
                     if not self.params.parallel or dist.get_rank() == 0:
                         self.env.render()
@@ -190,7 +193,10 @@ class CarDQN(ParallelDQN):
                 self.mean_rewards.append(mean_rew)
                 print("Mean reward is {}".format(mean_rew))
             # save best model
-            # self.save_best_model(metric=mean_rew)
+
+            if save:
+                self.save_best_model(metric=mean_rew)
+
             self.q_net.train() # set back to train
     
     def save_best_model(self, metric):
@@ -242,7 +248,7 @@ class CarDQN(ParallelDQN):
         self.steps_done += 1
 
         max_epsilon = 0.8
-        min_epsilon = 0.2
+        min_epsilon = self.params.epsilon
 
         num_total_steps = self.total_eps*self.num_rollouts
 

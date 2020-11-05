@@ -44,7 +44,7 @@ class ParallelDQN(Agent):
         self.q_target_net = get_model(params).to(self.device)
 
         # optims
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.q_net.parameters(), lr=0.0001)
         
         # copying q_net to q_target
         self.copy_q_target_net()

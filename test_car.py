@@ -23,21 +23,22 @@ def run_car_racing(parallel=True):
         'action_dim': 5, # action space of brake, acc, left, right, straight
         'gamma': 0.99,
         'rew_dim': 1,
-        'epsilon': 0,
+        'epsilon': 0.5,
         "update_steps" : 10,
-        "total_eps": 500,
-        "num_rollouts": 1,
+        "total_eps": 1000,
+        "num_rollouts": 3,
         "rollout_len": 1000,
         "test_num_rollouts": 2,
-        "test_rollout_len": 100,
-        "buf_size": 1000,
-        "batch_sz": 128,
+        "test_rollout_len": 300,
+        "buf_size": 10000,
+        "batch_sz": 512,
         "target_update_step": 10,
         "device": "cpu",
         "save_path": "./model/dqn/",
         "network_type": "cnn",
         "action_label_dim": 1,
-        "parallel": parallel
+        "parallel": parallel,
+        "load_model": True
     }
     params = Params(params)
     dqn = CarDQN(env, params)
@@ -69,5 +70,5 @@ def parallel_run(size=1):
         p.join()
 
 if __name__ == "__main__":
-    # parallel_run(size=4)
+    # parallel_run(size=2)
     run_car_racing(parallel=False)
