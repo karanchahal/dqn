@@ -49,14 +49,14 @@ class CarDQN(ParallelDQN):
         self.mean_rewards = []
 
 
-        # load saved models
-        self.load_saved_models('./model/dqn/model.pt')
+        # # load saved models
+        # self.load_saved_models('./model/dqn/model.pt')
 
-        # plt curves
-        self.plot_curves()
+        # # plt curves
+        # self.plot_curves()
 
-        # reset epsilon
-        self.epsilon = 0.8
+        # # reset epsilon
+        # self.epsilon = 0.8
 
     def plot_curves(self):
         fig, axs = plt.subplots(1,2)
@@ -123,7 +123,9 @@ class CarDQN(ParallelDQN):
 
     
     def sample(self):
-        print(f"Exploration epsilon is {self.epsilon} (1 means no exploration)")
+        if not self.params.parallel or dist.get_rank() == 0:
+            print(f"Exploration epsilon is {self.epsilon} (1 means no exploration)")
+            
         for _ in range(self.num_rollouts):
 
             s = self.reset_env()
@@ -152,7 +154,7 @@ class CarDQN(ParallelDQN):
 
                 traj.add(s, new_s, r, a)
 
-                if done or model_gone_wild > 100: # either done or in the green for more than 50 time steps, then 
+                if done or model_gone_wild > 300: # either done or in the green for more than 50 time steps, then 
                     break
                 
                 s = new_s
@@ -166,9 +168,9 @@ class CarDQN(ParallelDQN):
         with torch.no_grad():
             self.q_net.eval()
             total_rew = 0
-            for _ in range(50): # self.params.test_num_rollouts
+            for _ in range(2): # self.params.test_num_rollouts
                 s = self.reset_env()
-                for _ in range(400):
+                for _ in range(200):
                     # if render:
                     if not self.params.parallel or dist.get_rank() == 0:
                         self.env.render()
@@ -211,17 +213,25 @@ class CarDQN(ParallelDQN):
             self.env = gym.make('CarRacing-v0', verbose=0).unwrapped
 
             # print(f"Sampling {i}..")
-            print(f"Sampling {i}..")
+            if not self.params.parallel or dist.get_rank() == 0:
+                print(f"Sampling {i}..")
+
             self.sample()
-            print(f"Updating {i}..")
+
+            if not self.params.parallel or dist.get_rank() == 0:
+                print(f"Updating {i}..")
+
             for _ in range(self.update_steps):
                 batch = self.buffer.get(self.batch_size)
                 self.update(batch)
 
             if i % self.target_update_step == 0:
+                if not self.params.parallel or dist.get_rank() == 0:
+                    print(f"Copying over Target Net {i}..")
                 self.copy_q_target_net()
             
-            print(f"Evaluating {i}..")
+            if not self.params.parallel or dist.get_rank() == 0:
+                print(f"Evaluating {i}..")
 
             self.eval_agent()
 
@@ -229,16 +239,18 @@ class CarDQN(ParallelDQN):
 
     def decay_epsilon(self):
 
-        # self.steps_done += 1
+        self.steps_done += 1
 
-        # max_epsilon = 0.8
-        # min_epsilon = 0.2
+        max_epsilon = 0.8
+        min_epsilon = 0.2
 
-        # num_total_steps = self.total_eps*self.num_rollouts
+        num_total_steps = self.total_eps*self.num_rollouts
 
-        # new_eps = max(min_epsilon, max_epsilon*self.steps_done / num_total_steps)
-        # self.epsilon = new_eps
-        self.epsilon = 0.8
-        # print(f"Epsilon {self.epsilon}")
+        new_eps = max(min_epsilon, max_epsilon*self.steps_done / num_total_steps)
+        self.epsilon = new_eps
+        # self.epsilon = 0.8
+
+        if not self.params.parallel or dist.get_rank() == 0:
+            print(f"Epsilon {self.epsilon}")
 
 
