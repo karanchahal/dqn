@@ -23,7 +23,7 @@ def run_car_racing(parallel=True):
         'action_dim': 5, # action space of brake, acc, left, right, straight
         'gamma': 0.99,
         'rew_dim': 1,
-        'epsilon': 0.5,
+        'epsilon': 0.9,
         "update_steps" : 10,
         "total_eps": 1000,
         "num_rollouts": 3,
@@ -32,7 +32,7 @@ def run_car_racing(parallel=True):
         "test_rollout_len": 300,
         "buf_size": 10000,
         "batch_sz": 512,
-        "target_update_step": 10,
+        "target_update_step": 5,
         "device": "cpu",
         "save_path": "./model/dqn/",
         "network_type": "cnn",

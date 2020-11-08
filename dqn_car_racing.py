@@ -53,6 +53,8 @@ class CarDQN(ParallelDQN):
         if self.params.load_model:
             print(self.params.save_path)
             self.load_saved_models(join(self.params.save_path, 'model.pt'))
+        
+        self.plot_curves()
 
 
     def plot_curves(self):
@@ -128,44 +130,49 @@ class CarDQN(ParallelDQN):
     def sample(self):
         if not self.params.parallel or dist.get_rank() == 0:
             print(f"Exploration epsilon is {self.epsilon} (1 means no exploration)")
-            
-        for _ in range(self.num_rollouts):
+        with torch.no_grad():
+            self.q_net.eval()
+            for _ in range(self.num_rollouts):
 
-            s = self.reset_env()
-            traj = Trajectory()
-            # print(s.shape)
+                s = self.reset_env()
+                traj = Trajectory()
+                # print(s.shape)
 
-            model_gone_wild = 0
-            for _ in range(self.rollout_len):
-                self.env.render()
-                a = self.sample_actions(s)
-                new_s, r, done, _ = self.step_env(a)
-                # print(new_s.shape, r.shape, a)
+                model_gone_wild = 0
+                for _ in range(self.rollout_len):
+                    self.env.render()
+                    a = self.sample_actions(s)
+                    new_s, r, done, _ = self.step_env(a)
 
-                # keeps a count of num steps the model has gone into the wild
-                if r.item() < 0:
-                    model_gone_wild += 1
-                else:
-                    model_gone_wild = 0
+                    if action_to_id(a) == 3: # bonus on accelerating
+                        r *= 1.5
+                    # print(new_s.shape, r.shape, a)
 
-                # turn a into tensor
-                with torch.no_grad():
-                    a = torch.tensor(action_to_id(a)).to(self.device).to(torch.float32).view(1)
+                    # keeps a count of num steps the model has gone into the wild
+                    if r.item() < 0:
+                        model_gone_wild += 1
+                    else:
+                        model_gone_wild = 0
 
-                if done:
-                    r = self.change_reward_at_rollout_end(r)
+                    # turn a into tensor
+                    with torch.no_grad():
+                        a = torch.tensor(action_to_id(a)).to(self.device).to(torch.float32).view(1)
 
-                traj.add(s, new_s, r, a)
+                    if done:
+                        r = self.change_reward_at_rollout_end(r)
 
-                if done or model_gone_wild > 300: # either done or in the green for more than 50 time steps, then 
-                    break
+                    traj.add(s, new_s, r, a)
+
+                    if done or model_gone_wild > 150: # either done or in the green for more than 50 time steps, then 
+                        break
+                    
+                    s = new_s
                 
-                s = new_s
-            
-            # add to buffer
-            self.buffer.add(traj)
+                # add to buffer
+                self.buffer.add(traj)
 
-            self.decay_epsilon()
+                self.decay_epsilon()
+                self.q_net.train()
 
     def eval_agent(self, render=False, save=True):
         with torch.no_grad():
@@ -247,7 +254,7 @@ class CarDQN(ParallelDQN):
 
         self.steps_done += 1
 
-        max_epsilon = 0.8
+        max_epsilon = 0.99
         min_epsilon = self.params.epsilon
 
         num_total_steps = self.total_eps*self.num_rollouts

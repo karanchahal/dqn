@@ -15,6 +15,7 @@ class Buffer:
         self.next_states = torch.empty((round(size), *env_params.state_dim))
         self.ptr = 0
         self.full = False
+        self.max_size = 0
 
     def add(self, trajectory: Trajectory):
         sz = trajectory.actions.shape[0]
@@ -39,9 +40,11 @@ class Buffer:
 
         self.ptr += sz
 
+        self.max_size = max(self.max_size, self.ptr)
+
     def get(self, sz: int):
         start = 0
-        end = self.size - 1 if self.full else self.ptr
+        end = self.max_size
 
         rand_indxs = get_random_indxs(sz, start=start, end=end)
         actions = self.actions[rand_indxs]
