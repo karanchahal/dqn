@@ -1,6 +1,7 @@
 import torch
 import attr
 from utils import discount_cumsum, get_mean_std_across_processes
+from typing import List
 
 @attr.s(auto_attribs=True)
 class EnvParams(object):
@@ -145,6 +146,20 @@ class Params:
         self.value_func_itrs: int = None
         self.policy_itrs: int = None
         self.load_saved: bool = None
+        self.min_exploration_steps: int = None
+        self.action_range: float = None
+        self.critic_tau: float = None
+        self.actor_update_frequency: float = None
+        self.learnable_temperature: float = None
+        self.actor_betas: List[float] = None
+        self.critic_betas: List[float] = None
+        self.alpha_betas: List[float] = None
+        self.actor_lr: float = None 
+        self.critic_lr: float = None
+        self.alpha_lr: float = None
+        self.critic_tau: float = None
+        self.critic_target_update_frequency: float = None
+        self.init_temperature: float = None
         self.__dict__ = d
 
     def __repr__(self):
